@@ -15,6 +15,10 @@ type Dog interface {
 	bark()
 }
 
+type Cat interface {
+	meow()
+}
+
 type Beagle struct {
 	name string
 }
@@ -33,4 +37,16 @@ func main() {
 	// Outputs {Snoopy} true
 	// snoopy is of type Dog, since it implements
 	// bark() which is required for the Dog interface
+
+	isCat, catOk := snoopy.(Cat)
+	fmt.Println(isCat, catOk)
+	// Outputs <nil> false
+
+	// Panic:
+	//
+	// Note that if we did not assign the error, then we will get a panic
+	//
+	// isCatSecondTry := snoopy.(Cat)
+	// fmt.Println(isCatSecondTry)
+	// --> will give us panic: interface conversion: main.Beagle is not main.Cat: missing method meow
 }
