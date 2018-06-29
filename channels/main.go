@@ -1,7 +1,8 @@
 /* Channels
  *
  * - Channels are how goroutines communicate with eachother.
- * - can be made with make(chan int)
+ * - can be made with make(chan int) indicates a channel of integers
+ * - you can specify channels of other types too, such as chan bool
  * - a typed conduit through which you can send and receive values
  *   using the channel operator <-
  */
