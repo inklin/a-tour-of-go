@@ -12,35 +12,47 @@
  */
 package main
 
-import "golang.org/x/tour/tree"
-import "fmt"
+import (
+	"fmt",
+	"golang.org/x/tour/tree"
+)
 
-func Walk(t *tree.Tree, ch chan int) {
-	if t != nil {
-		if t.Left != nil {
-			Walk(t.Left, ch)
-		} else {
-			ch <- t.Value
-		}
-
-		if t.Right != nil {
-			Walk(t.Right, ch)
-		}
+func walkImpl(t *tree.Tree, ch chan int) {
+	// reached end of tree
+	if t == nil {
+		return
 	}
-
-	return
+	// walk to the very left node of the tree
+	walkImpl(t.Left, ch)
+	// send the value of the tree node to the channel
+	ch <- t.Value
+	// walk to the right
+	walkImpl(t.Right, ch)
 }
 
-// Same determines whether the trees
-// t1 and t2 contain the same values.
+// Walk function:
+// walks along the tree t and sends all the values
+// of the tree to the channel ch
+func Walk(t *tree.Tree, ch chan int) {
+	walkImpl(t, ch)
+	// Need to close the channel here
+	close(ch)
+}
 
+// Same determines whether trees t1 and t2 contain the same values.
 func Same(t1, t2 *tree.Tree) bool {
-	ch1 := make(chan int)
-	ch2 := make(chan int)
+	// Create two channels for the two trees
+	ch1, ch2 := make(chan int), make(chan int)
 
+	// Have to goroutines that walk the
+	// trees t1 and t2, give them two different
+	// channels to receive the node values
 	go Walk(t1, ch1)
 	go Walk(t2, ch2)
 
+	// For every value received in ch1,
+	// compare it to value received in ch2
+	// to see if the tree values are the same.
 	for i := range ch1 {
 		if i != <-ch2 {
 			return false
@@ -51,9 +63,17 @@ func Same(t1, t2 *tree.Tree) bool {
 }
 
 func main() {
-	tree1 := tree.New(1)
-	// tree2 := tree.New(2)
+	fmt.Print("Same tree: tree.New(1) == tree.New(1): ")
+	if Same(tree.New(1), tree.New(1)) {
+		fmt.Println("PASS")
+	} else {
+		fmt.Println("FAIL")
+	}
 
-	// fmt.Println(Same(tree1, tree2))
-	fmt.Println(Same(tree1, tree1))
+	fmt.Print("Different trees: tree.New(1) != tree.New(2): ")
+	if !Same(tree.New(1), tree.New(2)) {
+		fmt.Println("PASS")
+	} else {
+		fmt.Println("FAIL")
+	}
 }
