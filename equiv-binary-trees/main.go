@@ -13,7 +13,8 @@
 package main
 
 import (
-	"fmt",
+	"fmt"
+
 	"golang.org/x/tour/tree"
 )
 
