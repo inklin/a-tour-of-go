@@ -9,6 +9,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 )
 
 type Fetcher interface {
@@ -17,38 +18,83 @@ type Fetcher interface {
 	Fetch(url string) (body string, urls []string, err error)
 }
 
-func goCrawl(url string, fetcher Fetcher, ch chan []string) {
-	body, urls, err := fetcher.Fetch(url)
+// Safe cache is ok to use concurrently.
+// We need to make sure that only one goroutine can access this
+// cache at a time to avoid conflicts.
+type SafeCache struct {
+	v   map[string]bool
+	mux sync.Mutex
+}
+
+func (c *SafeCache) CacheUrl(url string) {
+	c.mux.Lock()
+	c.v[url] = true
+	c.mux.Unlock()
+}
+
+func (c *SafeCache) Value(url string) bool {
+	c.mux.Lock()
+	// unlock the map after the value is returned
+	defer c.mux.Unlock()
+	return c.v[url]
+}
+
+// Crawl uses fetcher to recursively crawl
+// pages starting with url, to a maximum of depth.
+func Crawl(url string, depth int, fetcher Fetcher, cache *SafeCache) {
+	// TODO: Don't fetch the same URL twice.
+	// We need to have a cache object that lets us know whether
+	// we have fetched the url before.
+
+	// If we have already fetched this url before,
+	// do not fetch it again.
+	if cache.Value(url) {
+		fmt.Println("\nAlready visited ", url)
+		return
+	}
+
+	if depth <= 0 {
+		fmt.Printf("\nDone crawling, %v \n\n", url)
+		return
+	}
+
+	fmt.Printf("\nCrawling %v", url)
+	// get the urls found from the given url's body
+	_, childUrls, err := fetcher.Fetch(url)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Printf("found: %s %q\n", url, body)
+	cache.CacheUrl(url)
 
-	// send the slice of urls to the channel
-	ch <- urls
-}
+	// create a channel to see whether each child url
+	// is done fetching urls
+	done := make(chan bool)
 
-// We will use a hash map to cache the urls
-// that have already been visited
-//
-// {
-//   "someUrl.com": true
-// }
-var cache map[string]bool
+	// - for each of the urls, we want to crawl the url
+	// to find the urls from that page (start a new goroutine)
+	// - decrement depth by 1 since we are looking at the child url
+	for _, u := range childUrls {
+		go func(childUrl string) {
+			Crawl(childUrl, depth-1, fetcher, cache)
+			cache.CacheUrl(childUrl)
+			done <- true
+		}(u)
+	}
 
-// Crawl uses fetcher to recursively crawl
-// pages starting with url, to a maximum of depth.
-func Crawl(url string, depth int, fetcher Fetcher) {
-	// make a channel that receives slices of strings as values
-	urlsCh := make(chan []string)
-	// visit the initial url
-	cache[url] = true
-	goCrawl(url, fetcher, urlsCh)
+	// Wait to receive the done boolean from the child url
+	// Here we are receiving the boolean value from the channel
+	for range childUrls {
+		<-done
+		fmt.Printf("\nDone with %v", url)
+	}
+	return
 }
 
 func main() {
-	Crawl("https://golang.org/", 4, fetcher)
+	cache := SafeCache{v: make(map[string]bool)}
+
+	Crawl("https://golang.org/", 4, fetcher, &cache)
 }
 
 // fakeFetcher is Fetcher that returns canned results.
